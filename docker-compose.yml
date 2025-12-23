@@ -1,28 +1,13 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: sapphire
-      POSTGRES_PASSWORD: sapphire
-      POSTGRES_DB: sapphire_support
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sapphire"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   support-core:
     build:
       context: ./services/support-core
       dockerfile: Dockerfile
+    env_file:
+      - ./services/support-core/.env
     environment:
-      DATABASE_URL: postgresql://sapphire:sapphire@postgres:5432/sapphire_support
       AI_GATEWAY_URL: ${AI_GATEWAY_URL:-http://vm-ai2:8080}
       AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
       OUTLINE_API_URL: ${OUTLINE_API_URL:-https://outline.home.lan}
@@ -30,9 +15,6 @@ services:
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
     ports:
       - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - ./services/support-core:/app
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
@@ -68,7 +50,4 @@ services:
       - /app/node_modules
       - /app/.next
     command: sh -c "npm install && npm run dev"
-
-volumes:
-  postgres_data:
 
