@@ -20,7 +20,7 @@ def create_enum_if_not_exists(enum_name, enum_values):
     """Create PostgreSQL ENUM type if it doesn't exist"""
     # Escape enum name and values for safety
     enum_name_escaped = enum_name.replace('"', '""')
-    values_str = ", ".join([f"'{v.replace(\"'\", \"''\")}'" for v in enum_values])
+    values_str = ", ".join(["'" + v.replace("'", "''") + "'" for v in enum_values])
     # Use DO block to check and create atomically
     op.execute(f"""
         DO $$ BEGIN
