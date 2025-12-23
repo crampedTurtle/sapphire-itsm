@@ -250,7 +250,7 @@ def advance_onboarding_step(
         step.completed = True
         step.completed_at = datetime.utcnow()
         if metadata:
-            step.metadata = metadata
+            step.step_metadata = metadata
         db.commit()
         
         # Log audit event

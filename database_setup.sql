@@ -20,7 +20,7 @@
 CREATE DATABASE sapphire_support;
 
 -- Create user (will error if exists - that's okay)
-CREATE USER sapphire WITH PASSWORD 'sapphire';
+CREATE USER sapphire WITH PASSWORD 'mimic007A';
 
 -- Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE sapphire_support TO sapphire;
@@ -272,7 +272,7 @@ CREATE TABLE onboarding_steps (
     step_label VARCHAR NOT NULL,
     completed BOOLEAN NOT NULL,
     completed_at TIMESTAMP,
-    metadata JSONB
+    step_metadata JSONB
 );
 
 CREATE INDEX idx_onboarding_steps_onboarding_session_id ON onboarding_steps(onboarding_session_id);

@@ -61,7 +61,7 @@ class OnboardingStep(Base):
     step_label = Column(String, nullable=False)
     completed = Column(Boolean, nullable=False, default=False)
     completed_at = Column(DateTime, nullable=True)
-    metadata = Column(JSONB, nullable=True)
+    step_metadata = Column(JSONB, nullable=True)
     
     # Relationships
     session = relationship("OnboardingSession", back_populates="steps")

@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS onboarding_steps (
     step_label VARCHAR NOT NULL,
     completed BOOLEAN NOT NULL,
     completed_at TIMESTAMP,
-    metadata JSONB
+    step_metadata JSONB
 );
 
 CREATE INDEX IF NOT EXISTS idx_onboarding_steps_onboarding_session_id ON onboarding_steps(onboarding_session_id);

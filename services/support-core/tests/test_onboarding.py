@@ -92,7 +92,7 @@ def test_onboarding_step_advancement(db_session, test_tenant_id):
     ).first()
     
     assert step.completed is True
-    assert step.metadata == {"region": "us-east-1"}
+    assert step.step_metadata == {"region": "us-east-1"}
 
 
 def test_onboarding_step_idempotent(db_session, test_tenant_id):

@@ -126,7 +126,7 @@ async def get_onboarding_status(
                 "step_label": step.step_label,
                 "completed": step.completed,
                 "completed_at": step.completed_at.isoformat() if step.completed_at else None,
-                "metadata": step.metadata
+                "metadata": step.step_metadata
             }
             for step in steps
         ],

@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.Column('step_label', sa.String(), nullable=False),
         sa.Column('completed', sa.Boolean(), nullable=False),
         sa.Column('completed_at', sa.DateTime(), nullable=True),
-        sa.Column('metadata', postgresql.JSONB(), nullable=True),
+        sa.Column('step_metadata', postgresql.JSONB(), nullable=True),
     )
     
     # Tenant Entitlements
