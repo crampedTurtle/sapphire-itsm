@@ -16,7 +16,36 @@ branch_labels = None
 depends_on = None
 
 
+def create_enum_if_not_exists(enum_name, enum_values):
+    """Create PostgreSQL ENUM type if it doesn't exist"""
+    # Escape enum name and values for safety
+    enum_name_escaped = enum_name.replace('"', '""')
+    values_str = ", ".join([f"'{v.replace(\"'\", \"''\")}'" for v in enum_values])
+    # Use DO block to check and create atomically
+    op.execute(f"""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name_escaped}') THEN
+                CREATE TYPE "{enum_name_escaped}" AS ENUM ({values_str});
+            END IF;
+        END $$;
+    """)
+
+
 def upgrade() -> None:
+    # Create ENUM types if they don't exist (in case database was set up with SQL scripts)
+    create_enum_if_not_exists('plantier', ['tier0', 'tier1', 'tier2'])
+    create_enum_if_not_exists('identityrole', ['customer', 'agent', 'ops'])
+    create_enum_if_not_exists('intakesource', ['email', 'portal'])
+    create_enum_if_not_exists('intent', ['sales', 'support', 'onboarding', 'billing', 'compliance', 'outage', 'unknown'])
+    create_enum_if_not_exists('urgency', ['low', 'normal', 'high', 'critical'])
+    create_enum_if_not_exists('recommendedaction', ['self_service', 'create_case', 'route_sales', 'escalate_ops', 'needs_review'])
+    create_enum_if_not_exists('casestatus', ['new', 'open', 'pending_customer', 'pending_internal', 'escalated', 'resolved', 'closed'])
+    create_enum_if_not_exists('casepriority', ['low', 'normal', 'high', 'critical'])
+    create_enum_if_not_exists('casecategory', ['support', 'onboarding', 'billing', 'compliance', 'outage'])
+    create_enum_if_not_exists('sendertype', ['customer', 'agent', 'system'])
+    create_enum_if_not_exists('artifacttype', ['summary', 'draft_reply', 'kb_answer'])
+    create_enum_if_not_exists('slaeventtype', ['started', 'first_response', 'breached_first_response', 'breached_resolution', 'paused', 'resumed'])
+    
     # Tenants
     op.create_table(
         'tenants',

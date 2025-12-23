@@ -16,7 +16,27 @@ branch_labels = None
 depends_on = None
 
 
+def create_enum_if_not_exists(enum_name, enum_values):
+    """Create PostgreSQL ENUM type if it doesn't exist"""
+    # Escape enum name and values for safety
+    enum_name_escaped = enum_name.replace('"', '""')
+    values_str = ", ".join([f"'{v.replace(\"'\", \"''\")}'" for v in enum_values])
+    # Use DO block to check and create atomically
+    op.execute(f"""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name_escaped}') THEN
+                CREATE TYPE "{enum_name_escaped}" AS ENUM ({values_str});
+            END IF;
+        END $$;
+    """)
+
+
 def upgrade() -> None:
+    # Create ENUM types if they don't exist
+    create_enum_if_not_exists('onboardingphase', ['not_started', 'phase_0_provisioned', 'phase_1_first_value', 'phase_2_core_workflows', 'phase_3_independent', 'completed', 'paused', 'failed'])
+    create_enum_if_not_exists('onboardingstatus', ['active', 'paused', 'completed', 'failed'])
+    create_enum_if_not_exists('onboardingtrigger', ['supabase_registration', 'tier_upgrade', 'manual_restart'])
+    
     # Onboarding Sessions
     op.create_table(
         'onboarding_sessions',
