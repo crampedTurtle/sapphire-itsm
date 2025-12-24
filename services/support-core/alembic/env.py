@@ -1,9 +1,11 @@
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy.exc import ProgrammingError
 from alembic import context
 import os
 import sys
+import psycopg2
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
