@@ -3,7 +3,7 @@ SLA tracking and policy service
 """
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict
 from app.models.sla import SLAPolicy, SLAEvent, SLAEventType
 from app.models.case import Case
 from app.models.tenant import PlanTier
