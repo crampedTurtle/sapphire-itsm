@@ -17,18 +17,20 @@ depends_on = None
 
 
 def create_enum_if_not_exists(enum_name, enum_values):
-    """Create PostgreSQL ENUM type if it doesn't exist"""
-    # Escape enum name and values for safety
-    enum_name_escaped = enum_name.replace('"', '""')
+    """Create PostgreSQL ENUM type if it doesn't exist, ignoring if already exists"""
     values_str = ", ".join(["'" + v.replace("'", "''") + "'" for v in enum_values])
-    # Use DO block to check and create atomically
-    op.execute(f"""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name_escaped}') THEN
-                CREATE TYPE "{enum_name_escaped}" AS ENUM ({values_str});
+    # Use DO block that catches duplicate errors
+    op.execute(sa.text(f"""
+        DO $$ 
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name}') THEN
+                CREATE TYPE "{enum_name}" AS ENUM ({values_str});
             END IF;
+        EXCEPTION
+            WHEN duplicate_object THEN
+                NULL;  -- Type already exists, ignore
         END $$;
-    """)
+    """))
 
 
 def upgrade() -> None:
@@ -45,6 +47,9 @@ def upgrade() -> None:
     create_enum_if_not_exists('sendertype', ['customer', 'agent', 'system'])
     create_enum_if_not_exists('artifacttype', ['summary', 'draft_reply', 'kb_answer'])
     create_enum_if_not_exists('slaeventtype', ['started', 'first_response', 'breached_first_response', 'breached_resolution', 'paused', 'resumed'])
+    
+    # Note: Even with create_type=False, SQLAlchemy may still try to create types
+    # If types already exist from SQL scripts, this is fine - they'll be reused
     
     # Tenants
     op.create_table(
