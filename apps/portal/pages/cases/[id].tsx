@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import axios from 'axios'
+import { useAuth } from '../../contexts/AuthContext'
+import { AuthGuard } from '../../components/AuthGuard'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -21,9 +23,10 @@ interface Case {
   ai_artifacts: any[]
 }
 
-export default function CaseDetailPage() {
+function CaseDetailPageContent() {
   const router = useRouter()
   const { id } = router.query
+  const { email, isAuthenticated } = useAuth()
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [loading, setLoading] = useState(true)
   const [replyText, setReplyText] = useState('')
@@ -50,10 +53,15 @@ export default function CaseDetailPage() {
     e.preventDefault()
     if (!replyText.trim() || !id) return
 
+    if (!isAuthenticated || !email) {
+      alert('You must be authenticated to send a reply')
+      return
+    }
+    
     setSubmitting(true)
     try {
       await axios.post(`${API_URL}/v1/cases/${id}/messages`, {
-        sender_email: 'user@example.com', // Placeholder - should come from auth
+        sender_email: email,
         body_text: replyText
       })
       setReplyText('')
@@ -234,6 +242,14 @@ export default function CaseDetailPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function CaseDetailPage() {
+  return (
+    <AuthGuard>
+      <CaseDetailPageContent />
+    </AuthGuard>
   )
 }
 

@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/router'
 import axios from 'axios'
+import { useAuth } from '../../contexts/AuthContext'
+import { AuthGuard } from '../../components/AuthGuard'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-export default function NewCasePage() {
+function NewCasePageContent() {
   const router = useRouter()
+  const { email, tenantId, isAuthenticated } = useAuth()
   const [formData, setFormData] = useState({
     title: '',
     category: 'support',
@@ -17,14 +20,20 @@ export default function NewCasePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!isAuthenticated || !email) {
+      setError('You must be authenticated to create a case')
+      return
+    }
+    
     setSubmitting(true)
     setError('')
 
     try {
-      // In production, tenant_id and email would come from auth context
       // tenant_id is optional - will be resolved from email domain if not provided
       const response = await axios.post(`${API_URL}/v1/intake/portal`, {
-        from_email: 'user@example.com', // Placeholder - in production, get from auth
+        tenant_id: tenantId || undefined, // Will be resolved from email domain if not provided
+        from_email: email,
         category: formData.category,
         title: formData.title,
         priority: formData.priority,
@@ -197,6 +206,14 @@ export default function NewCasePage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function NewCasePage() {
+  return (
+    <AuthGuard>
+      <NewCasePageContent />
+    </AuthGuard>
   )
 }
 

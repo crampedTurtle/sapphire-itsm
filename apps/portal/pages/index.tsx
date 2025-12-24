@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
+import { useAuth } from '../contexts/AuthContext'
+import { AuthGuard } from '../components/AuthGuard'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-export default function Home() {
+function HomeContent() {
+  const { email, tenantId } = useAuth()
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -221,6 +224,14 @@ export default function Home() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <AuthGuard>
+      <HomeContent />
+    </AuthGuard>
   )
 }
 

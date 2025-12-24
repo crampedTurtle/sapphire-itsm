@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
+import { useAuth } from '../../contexts/AuthContext'
+import { AuthGuard } from '../../components/AuthGuard'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -13,7 +15,8 @@ interface Case {
   updated_at: string
 }
 
-export default function CasesPage() {
+function CasesPageContent() {
+  const { email, tenantId } = useAuth()
   const [cases, setCases] = useState<Case[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -143,6 +146,14 @@ export default function CasesPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function CasesPage() {
+  return (
+    <AuthGuard>
+      <CasesPageContent />
+    </AuthGuard>
   )
 }
 
