@@ -3,7 +3,7 @@
  * Provides user authentication state and methods throughout the app
  */
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth'
+import { getCurrentUser, signOut, fetchAuthSession, fetchUserAttributes } from 'aws-amplify/auth'
 import type { AuthUser } from 'aws-amplify/auth'
 
 interface AuthContextType {
@@ -29,22 +29,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = await getCurrentUser()
       setUser(currentUser)
       
-      // Get email from user attributes
-      const emailAttr = currentUser.signInDetails?.loginId || 
-                       currentUser.username ||
-                       null
-      setEmail(emailAttr)
-      
-      // Get tenant_id from custom attribute if available
-      // Cognito custom attributes are prefixed with 'custom:'
-      // You can set this during user registration or via Admin API
+      // Get user attributes including email
       try {
-        const session = await fetchAuthSession()
-        // Note: Custom attributes require AdminGetUser API call
-        // For now, we'll resolve tenant from email domain on the backend
-        setTenantId(null) // Will be resolved from email domain
+        const attributes = await fetchUserAttributes()
+        const userEmail = attributes.email || attributes['custom:email'] || currentUser.username || null
+        setEmail(userEmail)
+        
+        // Get tenant_id from custom attribute if available
+        const tenantIdAttr = attributes['custom:tenant_id'] || null
+        setTenantId(tenantIdAttr)
       } catch (err) {
-        console.error('Error fetching session:', err)
+        // Fallback to username if attributes can't be fetched
+        console.error('Error fetching user attributes:', err)
+        setEmail(currentUser.username || null)
+        setTenantId(null)
       }
     } catch (err) {
       // User is not authenticated
