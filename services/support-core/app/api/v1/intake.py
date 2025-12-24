@@ -13,6 +13,7 @@ from app.models.intake import IntakeEvent, IntakeSource, IntentClassification
 from app.models.case import Case, CaseStatus, CasePriority, CaseCategory, CaseMessage, SenderType
 from app.models.ai import AIArtifact, ArtifactType
 from app.models.crm import CRMEvent, CRMEventType
+from app.models.tenant import Tenant
 from app.services.ai_client import get_ai_client
 from app.services.tenant_service import resolve_tenant_by_domain, get_or_create_prospect_tenant, get_tenant_tier, get_or_create_identity
 from app.services.audit_service import log_audit_event
@@ -281,12 +282,17 @@ async def intake_portal(
     """
     Process structured portal intake
     """
-    if not request.tenant_id:
-        raise HTTPException(status_code=400, detail="tenant_id required for portal intake")
-    
-    tenant = db.query(Tenant).filter(Tenant.id == request.tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
+    # Resolve tenant - either from tenant_id or from email domain
+    if request.tenant_id:
+        tenant = db.query(Tenant).filter(Tenant.id == request.tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+    else:
+        # Try to resolve tenant from email domain
+        tenant = resolve_tenant_by_domain(db, request.from_email)
+        if not tenant:
+            # Create a prospect tenant if none exists
+            tenant = get_or_create_prospect_tenant(db)
     
     tier = get_tenant_tier(db, str(tenant.id))
     if tier == PlanTier.TIER0:

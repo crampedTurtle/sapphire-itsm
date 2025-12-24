@@ -22,9 +22,9 @@ export default function NewCasePage() {
 
     try {
       // In production, tenant_id and email would come from auth context
+      // tenant_id is optional - will be resolved from email domain if not provided
       const response = await axios.post(`${API_URL}/v1/intake/portal`, {
-        tenant_id: '00000000-0000-0000-0000-000000000000', // Placeholder
-        from_email: 'user@example.com', // Placeholder
+        from_email: 'user@example.com', // Placeholder - in production, get from auth
         category: formData.category,
         title: formData.title,
         priority: formData.priority,
@@ -33,7 +33,9 @@ export default function NewCasePage() {
 
       router.push(`/cases/${response.data.case_id}`)
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create case')
+      console.error('Error creating case:', err)
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to create case'
+      setError(errorMessage)
       setSubmitting(false)
     }
   }
