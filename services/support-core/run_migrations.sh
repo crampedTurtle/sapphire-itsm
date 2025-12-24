@@ -18,8 +18,8 @@ echo "Migration failed with exit code $MIGRATION_EXIT_CODE"
 echo "Migration output:"
 cat /tmp/migration_output.log
 
-# Check if the error is about duplicate ENUM types
-if grep -qi "duplicate.*type\|type.*already exists" /tmp/migration_output.log; then
+# Check if the error is about duplicate ENUM types (various error message formats)
+if grep -qiE "duplicate.*type|type.*already exists|DuplicateObject|already exists.*type" /tmp/migration_output.log; then
     echo ""
     echo "Detected duplicate ENUM type error - database was likely set up with SQL scripts"
     echo "Marking migrations as applied (types already exist)..."
