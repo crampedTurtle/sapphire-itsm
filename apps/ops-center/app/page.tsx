@@ -50,7 +50,21 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const data = await getDashboardData()
+  let data
+  try {
+    data = await getDashboardData()
+  } catch (error: any) {
+    console.error('Error loading dashboard data:', error)
+    // Return empty data structure to prevent crash
+    data = {
+      slaRiskPercent: 0,
+      complianceFlags: 0,
+      aiConfidence: { rolling_average: 0, sample_size: 0, trend: 'stable' as const },
+      interventionRate: 0,
+      atRiskCases: [],
+      recentEscalations: [],
+    }
+  }
 
   const slaRiskVariant = data.slaRiskPercent < 10 ? 'success' : 
                          data.slaRiskPercent < 20 ? 'warning' : 'danger'

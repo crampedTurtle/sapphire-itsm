@@ -5,19 +5,33 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}/v1/ops${endpoint}`
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  })
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
 
-  if (!response.ok) {
-    throw new Error(`API request failed: ${response.statusText}`)
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText)
+      throw new Error(`API request failed (${response.status}): ${errorText}`)
+    }
+
+    return response.json()
+  } catch (error: any) {
+    // Provide more helpful error messages
+    if (error.message?.includes('fetch failed') || error.message?.includes('Failed to fetch')) {
+      throw new Error(
+        `Failed to connect to API at ${url}. ` +
+        `Please check that the support-core service is running and accessible. ` +
+        `Current API_URL: ${API_URL}`
+      )
+    }
+    throw error
   }
-
-  return response.json()
 }
 
 export const opsApi = {
