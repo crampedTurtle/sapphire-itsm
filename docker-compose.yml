@@ -23,8 +23,8 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./apps/portal/.env
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+    # NEXT_PUBLIC_API_URL should come from .env file, not hardcoded here
+    # environment vars from env_file take precedence, but we can override if needed
     ports:
       - "3000:3000"
     depends_on:
