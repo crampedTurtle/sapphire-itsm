@@ -1,35 +1,41 @@
 #!/bin/bash
 # Migration wrapper that handles duplicate ENUM type errors
 
-set -e
+set +e  # Don't exit on error, we'll handle it
 
 echo "Running database migrations..."
 
 # Try to run migrations
-if alembic upgrade head; then
+alembic upgrade head 2>&1 | tee /tmp/migration_output.log
+MIGRATION_EXIT_CODE=${PIPESTATUS[0]}
+
+if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
     echo "Migrations completed successfully"
     exit 0
-else
-    MIGRATION_ERROR=$?
-    echo "Migration failed with exit code $MIGRATION_ERROR"
+fi
+
+echo "Migration failed with exit code $MIGRATION_EXIT_CODE"
+echo "Migration output:"
+cat /tmp/migration_output.log
+
+# Check if the error is about duplicate ENUM types
+if grep -qi "duplicate.*type\|type.*already exists" /tmp/migration_output.log; then
+    echo ""
+    echo "Detected duplicate ENUM type error - database was likely set up with SQL scripts"
+    echo "Marking migrations as applied (types already exist)..."
     
-    # Check if the error is about duplicate ENUM types
-    # If database was set up with SQL scripts, types already exist
-    # In this case, we can mark migrations as applied
-    if [ $MIGRATION_ERROR -ne 0 ]; then
-        echo "Checking if this is a duplicate type error..."
-        echo "If ENUM types already exist (from SQL scripts), marking migrations as applied..."
-        
-        # Try to stamp as head - this marks all migrations as applied without running them
-        if alembic stamp head; then
-            echo "Successfully marked migrations as applied (types already exist)"
-            exit 0
-        else
-            echo "Failed to stamp migrations. Original error may be different."
-            exit $MIGRATION_ERROR
-        fi
+    # Try to stamp as head - this marks all migrations as applied without running them
+    if alembic stamp head; then
+        echo "✓ Successfully marked migrations as applied (types already exist)"
+        echo "Continuing with service startup..."
+        exit 0
+    else
+        echo "✗ Failed to stamp migrations"
+        exit 1
     fi
-    
-    exit $MIGRATION_ERROR
+else
+    echo "Migration failed for a different reason (not duplicate types)"
+    echo "Please check the error above"
+    exit $MIGRATION_EXIT_CODE
 fi
 
