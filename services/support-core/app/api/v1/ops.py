@@ -16,6 +16,8 @@ from app.models.sla import SLAEvent, SLAEventType
 from app.models.ai import AIArtifact
 from app.models.tenant import PlanTier, Tenant
 from app.models.onboarding import OnboardingSession, OnboardingStatus
+from app.models.audit import AuditEvent
+from app.services.sla_service import get_sla_policy, get_default_sla_policy
 
 router = APIRouter()
 
@@ -127,13 +129,39 @@ async def get_ops_cases(
             CaseMessage.case_id == case.id
         ).scalar()
         
-        # Check SLA breaches
+        # Check SLA breaches and calculate remaining
         breach_events = db.query(SLAEvent).filter(
             and_(
                 SLAEvent.case_id == case.id,
                 SLAEvent.event_type.in_([SLAEventType.BREACHED_FIRST_RESPONSE, SLAEventType.BREACHED_RESOLUTION])
             )
         ).all()
+        
+        sla_breached = len(breach_events) > 0
+        sla_remaining = None
+        
+        if not sla_breached:
+            # Get tenant and tier
+            tenant = db.query(Tenant).filter(Tenant.id == case.tenant_id).first()
+            if tenant:
+                # Get SLA policy
+                policy = get_sla_policy(db, case.tenant_id, tenant.plan_tier)
+                if policy:
+                    resolution_minutes = policy.resolution_minutes
+                else:
+                    defaults = get_default_sla_policy(tenant.plan_tier)
+                    resolution_minutes = defaults["resolution"]
+                
+                # Calculate remaining time
+                now = datetime.utcnow()
+                case_age = now - case.created_at
+                age_minutes = case_age.total_seconds() / 60
+                
+                if age_minutes < resolution_minutes:
+                    remaining_minutes = resolution_minutes - age_minutes
+                    sla_remaining = (remaining_minutes / resolution_minutes) * 100
+                else:
+                    sla_remaining = 0
         
         # Check onboarding status
         onboarding_session = db.query(OnboardingSession).filter(
@@ -158,7 +186,8 @@ async def get_ops_cases(
             "created_at": case.created_at.isoformat(),
             "updated_at": case.updated_at.isoformat(),
             "messages_count": message_count or 0,
-            "sla_breached": len(breach_events) > 0,
+            "sla_breached": sla_breached,
+            "sla_remaining": round(sla_remaining, 1) if sla_remaining is not None else None,
             "onboarding": onboarding_status
         })
     
@@ -296,5 +325,176 @@ async def update_case(
         "changes": changes,
         "status": case.status.value,
         "priority": case.priority.value
+    }
+
+
+@router.get("/cases/{case_id}")
+async def get_ops_case(
+    case_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+    """Get full case details for ops center"""
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    # Get messages
+    messages = db.query(CaseMessage).filter(
+        CaseMessage.case_id == case_id
+    ).order_by(CaseMessage.created_at).all()
+    
+    # Get AI artifacts
+    ai_artifacts = db.query(AIArtifact).filter(
+        AIArtifact.case_id == case_id
+    ).order_by(AIArtifact.created_at).all()
+    
+    # Get SLA events
+    sla_events = db.query(SLAEvent).filter(
+        SLAEvent.case_id == case_id
+    ).order_by(SLAEvent.created_at).all()
+    
+    # Calculate SLA remaining
+    sla_remaining = None
+    sla_breached = any(
+        event.event_type in [SLAEventType.BREACHED_FIRST_RESPONSE, SLAEventType.BREACHED_RESOLUTION]
+        for event in sla_events
+    )
+    
+    if not sla_breached:
+        # Get tenant and tier
+        tenant = db.query(Tenant).filter(Tenant.id == case.tenant_id).first()
+        if tenant:
+            # Get SLA policy
+            policy = get_sla_policy(db, case.tenant_id, tenant.plan_tier)
+            if policy:
+                resolution_minutes = policy.resolution_minutes
+            else:
+                defaults = get_default_sla_policy(tenant.plan_tier)
+                resolution_minutes = defaults["resolution"]
+            
+            # Calculate remaining time
+            now = datetime.utcnow()
+            case_age = now - case.created_at
+            age_minutes = case_age.total_seconds() / 60
+            
+            if age_minutes < resolution_minutes:
+                remaining_minutes = resolution_minutes - age_minutes
+                sla_remaining = (remaining_minutes / resolution_minutes) * 100
+            else:
+                sla_remaining = 0
+    
+    return {
+        "id": str(case.id),
+        "tenant_id": str(case.tenant_id),
+        "title": case.title,
+        "status": case.status.value,
+        "priority": case.priority.value,
+        "category": case.category.value,
+        "created_at": case.created_at.isoformat(),
+        "updated_at": case.updated_at.isoformat(),
+        "owner_identity_id": str(case.owner_identity_id) if case.owner_identity_id else None,
+        "messages": [
+            {
+                "id": str(msg.id),
+                "sender_type": msg.sender_type.value,
+                "sender_email": msg.sender_email,
+                "body_text": msg.body_text,
+                "attachments": msg.attachments,
+                "created_at": msg.created_at.isoformat()
+            }
+            for msg in messages
+        ],
+        "ai_artifacts": [
+            {
+                "id": str(artifact.id),
+                "artifact_type": artifact.artifact_type.value,
+                "content": artifact.content,
+                "citations": artifact.citations,
+                "confidence": artifact.confidence,
+                "model_used": artifact.model_used,
+                "created_at": artifact.created_at.isoformat()
+            }
+            for artifact in ai_artifacts
+        ],
+        "sla_breached": sla_breached,
+        "sla_remaining": sla_remaining
+    }
+
+
+@router.get("/cases/{case_id}/audit")
+async def get_ops_case_audit(
+    case_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+    """Get audit trail for a case"""
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    audit_events = db.query(AuditEvent).filter(
+        AuditEvent.case_id == case_id
+    ).order_by(AuditEvent.created_at).all()
+    
+    return [
+        {
+            "id": str(event.id),
+            "event_type": event.event_type,
+            "payload": event.payload,
+            "created_at": event.created_at.isoformat()
+        }
+        for event in audit_events
+    ]
+
+
+@router.get("/metrics/ai-confidence")
+async def get_ai_confidence_metrics(
+    days: int = Query(7, ge=1, le=90),
+    db: Session = Depends(get_db)
+):
+    """Get AI confidence metrics"""
+    start_time = datetime.utcnow() - timedelta(days=days)
+    
+    # Get all AI artifacts with confidence scores in the time window
+    artifacts = db.query(AIArtifact).filter(
+        and_(
+            AIArtifact.created_at >= start_time,
+            AIArtifact.confidence.isnot(None)
+        )
+    ).all()
+    
+    if not artifacts:
+        return {
+            "rolling_average": 0.0,
+            "sample_size": 0,
+            "trend": "stable",
+            "time_window_days": days
+        }
+    
+    # Calculate rolling average
+    confidences = [a.confidence for a in artifacts if a.confidence is not None]
+    rolling_average = sum(confidences) / len(confidences) if confidences else 0.0
+    
+    # Calculate trend (compare first half vs second half)
+    sample_size = len(confidences)
+    trend = "stable"
+    
+    if sample_size >= 10:
+        midpoint = sample_size // 2
+        first_half_avg = sum(confidences[:midpoint]) / midpoint if midpoint > 0 else 0.0
+        second_half_avg = sum(confidences[midpoint:]) / (sample_size - midpoint) if (sample_size - midpoint) > 0 else 0.0
+        
+        diff = second_half_avg - first_half_avg
+        if diff > 0.05:
+            trend = "improving"
+        elif diff < -0.05:
+            trend = "declining"
+    
+    return {
+        "rolling_average": round(rolling_average, 3),
+        "sample_size": sample_size,
+        "trend": trend,
+        "time_window_days": days,
+        "min_confidence": round(min(confidences), 3) if confidences else None,
+        "max_confidence": round(max(confidences), 3) if confidences else None
     }
 

@@ -96,7 +96,9 @@ export default function CaseDetailPage() {
     return <div className="text-center py-8">Case not found</div>
   }
 
-  const slaRemaining = Math.random() * 100 // Mock
+  const slaRemaining = caseData.sla_remaining !== null && caseData.sla_remaining !== undefined 
+    ? caseData.sla_remaining 
+    : 100
   const aiArtifact = caseData.ai_artifacts.find(a => a.artifact_type === 'summary')
 
   return (

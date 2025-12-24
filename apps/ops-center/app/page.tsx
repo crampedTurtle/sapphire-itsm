@@ -13,30 +13,33 @@ async function getDashboardData() {
     opsApi.getCases({ limit: 10 }),
   ])
 
-  // Calculate SLA risk index
+  // Calculate SLA risk index (cases with < 20% SLA remaining or breached)
   const slaRiskCases = cases.cases.filter(c => {
-    // Mock SLA calculation - in production, calculate from SLA events
-    return c.sla_breached || Math.random() < 0.15 // Simulate 15% at risk
+    return c.sla_breached || (c.sla_remaining !== null && c.sla_remaining < 20)
   })
-  const slaRiskPercent = (slaRiskCases.length / cases.cases.length) * 100
+  const slaRiskPercent = cases.cases.length > 0 
+    ? (slaRiskCases.length / cases.cases.length) * 100 
+    : 0
 
   // Compliance flags
   const complianceFlags = alerts.filter(a => a.type === 'compliance_flag').length
 
-  // AI confidence (mock)
+  // AI confidence
   const aiConfidence = await opsApi.getAIConfidenceMetrics()
 
-  // Human intervention rate (mock - calculate from audit events)
-  const interventionRate = 0.12 // 12%
+  // Human intervention rate (calculate from audit events - simplified for now)
+  // TODO: Add endpoint to calculate intervention rate from audit events
+  const interventionRate = 0.12 // 12% - placeholder until we add metrics endpoint
 
   // At-risk cases
-  const atRiskCases = cases.cases.slice(0, 10).map(c => ({
+  const atRiskCases = slaRiskCases.slice(0, 10).map(c => ({
     ...c,
-    risk_reason: c.sla_breached ? 'SLA Risk' : 
+    risk_reason: c.sla_breached ? 'SLA Breached' : 
+                 c.sla_remaining !== null && c.sla_remaining < 20 ? 'SLA Risk' :
                  alerts.some(a => a.case_id === c.id && a.type === 'compliance_flag') ? 'Compliance Flag' :
                  alerts.some(a => a.case_id === c.id && a.type === 'low_confidence') ? 'Low AI Confidence' :
                  'Escalated',
-    sla_remaining: Math.random() * 100, // Mock
+    sla_remaining: c.sla_remaining !== null ? c.sla_remaining : 100,
   }))
 
   return {

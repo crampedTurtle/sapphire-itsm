@@ -90,44 +90,63 @@ export const opsApi = {
   /**
    * Get AI confidence metrics
    */
-  async getAIConfidenceMetrics() {
-    // This endpoint doesn't exist yet, return mock data
-    // TODO: Implement in backend
-    return {
-      rolling_average: 0.85,
-      sample_size: 150,
-      trend: 'stable' as const,
-    }
+  async getAIConfidenceMetrics(days: number = 7) {
+    return apiRequest<{
+      rolling_average: number
+      sample_size: number
+      trend: 'stable' | 'improving' | 'declining'
+      time_window_days: number
+      min_confidence?: number
+      max_confidence?: number
+    }>(`/metrics/ai-confidence?days=${days}`)
   },
 
   /**
    * Get case detail
    */
   async getCase(caseId: string) {
-    // This endpoint doesn't exist yet, construct from cases endpoint
-    // TODO: Implement /v1/ops/cases/{case_id} endpoint
-    const response = await apiRequest<{ cases: any[] }>(`/cases?limit=1000`)
-    const caseItem = response.cases.find(c => c.id === caseId)
-    if (!caseItem) {
-      throw new Error('Case not found')
-    }
-    
-    // For now, return basic case data
-    // TODO: Fetch full case detail from /v1/cases/{case_id}
-    return {
-      ...caseItem,
-      messages: [],
-      ai_artifacts: [],
-    }
+    return apiRequest<{
+      id: string
+      tenant_id: string
+      title: string
+      status: string
+      priority: string
+      category: string
+      created_at: string
+      updated_at: string
+      owner_identity_id?: string
+      messages: Array<{
+        id: string
+        sender_type: string
+        sender_email: string
+        body_text: string
+        attachments?: any
+        created_at: string
+      }>
+      ai_artifacts: Array<{
+        id: string
+        artifact_type: string
+        content: string
+        citations?: any
+        confidence?: number
+        model_used: string
+        created_at: string
+      }>
+      sla_breached: boolean
+      sla_remaining?: number
+    }>(`/cases/${caseId}`)
   },
 
   /**
    * Get case audit trail
    */
   async getCaseAudit(caseId: string) {
-    // This endpoint doesn't exist yet, return empty array
-    // TODO: Implement /v1/ops/cases/{case_id}/audit endpoint
-    return []
+    return apiRequest<Array<{
+      id: string
+      event_type: string
+      payload?: any
+      created_at: string
+    }>>(`/cases/${caseId}/audit`)
   },
 
   /**

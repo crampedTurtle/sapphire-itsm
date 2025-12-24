@@ -26,6 +26,7 @@ export interface Case {
   updated_at: string
   messages_count?: number
   sla_breached?: boolean
+  sla_remaining?: number | null
   onboarding?: {
     status: string
     phase: string
@@ -36,6 +37,8 @@ export interface Case {
 export interface CaseDetail extends Case {
   messages: CaseMessage[]
   ai_artifacts: AIArtifact[]
+  owner_identity_id?: string | null
+  sla_remaining?: number | null
 }
 
 export interface CaseMessage {
