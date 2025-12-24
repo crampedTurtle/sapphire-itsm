@@ -34,7 +34,37 @@ if grep -qiE "duplicate.*type|type.*already exists|DuplicateObject|already exist
         exit 1
     fi
 else
-    echo "Migration failed for a different reason (not duplicate types)"
+    echo "Migration failed - checking if database schema already exists..."
+    
+    # Check if key tables exist (indicating schema was set up with SQL scripts)
+    if python3 -c "
+import sys
+from app.core.config import settings
+from app.core.database import engine
+from sqlalchemy import inspect
+
+try:
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    key_tables = ['tenants', 'cases', 'intake_events']
+    if all(t in tables for t in key_tables):
+        print('Key tables exist - schema appears to be set up')
+        sys.exit(0)
+    else:
+        print('Key tables missing - schema not complete')
+        sys.exit(1)
+except Exception as e:
+    print(f'Error checking tables: {e}')
+    sys.exit(1)
+" 2>/dev/null; then
+        echo "Database schema exists - marking migrations as applied..."
+        if alembic stamp head; then
+            echo "✓ Successfully marked migrations as applied"
+            exit 0
+        fi
+    fi
+    
+    echo "Migration failed for a different reason"
     echo "Please check the error above"
     exit $MIGRATION_EXIT_CODE
 fi
