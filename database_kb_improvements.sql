@@ -15,7 +15,38 @@
 -- ============================================================================
 
 -- ============================================================================
--- 1. ADD COLUMNS TO EXISTING TABLES
+-- 1. CREATE SUPPORT_AI_LOGS TABLE (if it doesn't exist)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS support_ai_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    case_id UUID,
+    message VARCHAR NOT NULL,
+    subject VARCHAR,
+    ai_answer VARCHAR NOT NULL,
+    confidence FLOAT NOT NULL,
+    resolved BOOLEAN NOT NULL DEFAULT FALSE,
+    follow_up_flag BOOLEAN NOT NULL DEFAULT FALSE,
+    escalation_triggered BOOLEAN NOT NULL DEFAULT FALSE,
+    attempt_number INTEGER NOT NULL DEFAULT 1,
+    citations JSONB,
+    context_docs JSONB,
+    user_feedback VARCHAR,
+    model_used VARCHAR NOT NULL,
+    tier INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_support_ai_logs_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+    CONSTRAINT fk_support_ai_logs_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE SET NULL
+);
+
+-- Indexes for support_ai_logs
+CREATE INDEX IF NOT EXISTS ix_support_ai_logs_tenant_id ON support_ai_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS ix_support_ai_logs_case_id ON support_ai_logs(case_id);
+CREATE INDEX IF NOT EXISTS ix_support_ai_logs_created_at ON support_ai_logs(created_at);
+
+-- ============================================================================
+-- 2. ADD COLUMNS TO EXISTING TABLES
 -- ============================================================================
 
 -- Add AI confidence and tier route to cases table
@@ -39,7 +70,7 @@ BEGIN
     END IF;
 END $$;
 
--- Add KB and training fields to support_ai_logs table
+-- Add KB and training fields to support_ai_logs table (now that it exists)
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -116,6 +147,7 @@ CREATE INDEX IF NOT EXISTS ix_kb_article_revisions_created_at ON kb_article_revi
 -- ============================================================================
 -- 4. CREATE KB DECISION LOGS TABLE
 -- ============================================================================
+-- Note: This table references support_ai_logs, which is created in section 1
 
 CREATE TABLE IF NOT EXISTS kb_decision_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,9 +156,23 @@ CREATE TABLE IF NOT EXISTS kb_decision_logs (
     reason TEXT,
     similarity_score VARCHAR,  -- JSON string with similarity details
     outline_document_id VARCHAR,
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_kb_decision_logs_support_log FOREIGN KEY (support_log_id) REFERENCES support_ai_logs(id) ON DELETE SET NULL
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Add foreign key constraint separately (in case support_ai_logs doesn't exist yet)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'support_ai_logs') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'fk_kb_decision_logs_support_log'
+        ) THEN
+            ALTER TABLE kb_decision_logs 
+            ADD CONSTRAINT fk_kb_decision_logs_support_log 
+            FOREIGN KEY (support_log_id) REFERENCES support_ai_logs(id) ON DELETE SET NULL;
+        END IF;
+    END IF;
+END $$;
 
 -- Indexes for kb_decision_logs
 CREATE INDEX IF NOT EXISTS ix_kb_decision_logs_support_log_id ON kb_decision_logs(support_log_id);
@@ -177,6 +223,7 @@ DO $$
 BEGIN
     RAISE NOTICE 'KB Improvement System tables created successfully!';
     RAISE NOTICE 'Tables created:';
+    RAISE NOTICE '  - support_ai_logs';
     RAISE NOTICE '  - kb_articles_index';
     RAISE NOTICE '  - kb_article_revisions';
     RAISE NOTICE '  - kb_decision_logs';
