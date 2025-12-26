@@ -42,6 +42,14 @@ export default function RootLayout({
                     <NavLink href="/cases">Cases</NavLink>
                     <NavLink href="/alerts">Alerts</NavLink>
                     <NavLink href="/metrics">Metrics</NavLink>
+                    <div className="relative group">
+                      <NavLink href="/kb-review">Knowledge Base</NavLink>
+                      <div className="absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 border border-gray-200">
+                        <Link href="/kb-review" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          Review Queue
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

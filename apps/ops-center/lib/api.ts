@@ -34,6 +34,36 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   }
 }
 
+async function kbApiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = `${API_URL}/v1/kb${endpoint}`
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText)
+      throw new Error(`API request failed (${response.status}): ${errorText}`)
+    }
+
+    return response.json()
+  } catch (error: any) {
+    if (error.message?.includes('fetch failed') || error.message?.includes('Failed to fetch')) {
+      throw new Error(
+        `Failed to connect to API at ${url}. ` +
+        `Please check that the support-core service is running and accessible. ` +
+        `Current API_URL: ${API_URL}`
+      )
+    }
+    throw error
+  }
+}
+
 export const opsApi = {
   /**
    * Get intake metrics
@@ -165,3 +195,54 @@ export const opsApi = {
   },
 }
 
+export const kbApi = {
+  /**
+   * Get KB review queue
+   */
+  async getReviewQueue() {
+    const response = await kbApiRequest<{
+      count: number
+      items: Array<{
+        outline_document_id: string
+        title: string
+        overall_score: number
+        clarity_score: number
+        completeness_score: number
+        technical_accuracy_score: number
+        structure_score: number
+        needs_review: boolean
+        reason?: string
+        created_at: string
+        quality_score_id: string
+      }>
+    }>('/review-queue')
+    return response
+  },
+
+  /**
+   * Approve KB article
+   */
+  async approveArticle(documentId: string, reviewedBy: string, notes?: string) {
+    return kbApiRequest(`/review/${documentId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reviewed_by: reviewedBy,
+        notes,
+      }),
+    })
+  },
+
+  /**
+   * Reject KB article
+   */
+  async rejectArticle(documentId: string, reviewedBy: string, reason: string, disableArticle: boolean = true) {
+    return kbApiRequest(`/review/${documentId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reviewed_by: reviewedBy,
+        reason,
+        disable_article: disableArticle,
+      }),
+    })
+  },
+}
