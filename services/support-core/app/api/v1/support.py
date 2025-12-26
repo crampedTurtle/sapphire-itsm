@@ -20,6 +20,7 @@ from app.services.tenant_service import get_tenant_tier, get_or_create_identity
 from app.services.audit_service import log_audit_event
 from app.services.sla_service import start_sla_tracking
 from app.services.support_ai_engine import SupportAIEngine, SupportResponse
+from app.services.outline_kb_writer import get_outline_kb_writer
 
 router = APIRouter()
 
@@ -137,6 +138,27 @@ async def intake_request(
     if final_confidence >= 0.78 and not engine.should_escalate(final_confidence, attempt_number):
         # Auto-resolve: Return AI answer without creating case
         ai_log.resolved = True
+        
+        # Generate KB article if resolution was successful
+        kb_result = None
+        try:
+            kb_writer = get_outline_kb_writer()
+            kb_result = await kb_writer.create_article_from_resolution(
+                issue_title=request.subject,
+                problem_description=request.message,
+                resolution_answer=resolution.answer,
+                resolution_steps=resolution.steps,
+                confidence=final_confidence,
+                tenant_name=tenant.name,
+                is_tenant_specific=False  # Make articles public/general by default
+            )
+            
+            if kb_result.get("kb_created"):
+                ai_log.kb_document_id = kb_result.get("document_id")
+        except Exception as e:
+            # Don't fail the response if KB generation fails
+            pass
+        
         db.commit()
         
         # Log audit
@@ -148,11 +170,13 @@ async def intake_request(
                 "subject": request.subject,
                 "confidence": final_confidence,
                 "user_id": request.user_id,
-                "attempt_number": attempt_number
+                "attempt_number": attempt_number,
+                "kb_created": kb_result.get("kb_created", False) if kb_result else False,
+                "kb_document_id": kb_result.get("document_id") if kb_result else None
             }
         )
         
-        return {
+        response_data = {
             "status": "ai_response",
             "confidence": final_confidence,
             "answer": engine.format_resolution(resolution),
@@ -161,6 +185,14 @@ async def intake_request(
             "suggest_escalation": False,
             "remediation_steps": resolution.recommended_fix_attempts or []
         }
+        
+        # Add KB creation info if available
+        if kb_result:
+            response_data["kb_created"] = kb_result.get("kb_created", False)
+            response_data["kb_document_id"] = kb_result.get("document_id")
+            response_data["kb_url"] = kb_result.get("url")
+        
+        return response_data
     
     elif final_confidence >= 0.45 and final_confidence < 0.78:
         # Ask follow-up question

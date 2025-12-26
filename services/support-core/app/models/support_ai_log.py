@@ -29,6 +29,7 @@ class SupportAILog(Base):
     user_feedback = Column(String, nullable=True)  # User feedback (helpful/not helpful)
     model_used = Column(String, nullable=False)
     tier = Column(Integer, nullable=True)  # Tier level (0, 1, 2)
+    kb_document_id = Column(String, nullable=True)  # Outline document ID if KB article was created
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     
     # Relationships

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Outline KB
     OUTLINE_API_URL: str = "https://outline.home.lan"
     OUTLINE_API_KEY: str = ""
+    OUTLINE_COLLECTION: str = ""  # Collection ID for auto-generated articles
     
     # Application
     APP_NAME: str = "sapphire-support-core"
