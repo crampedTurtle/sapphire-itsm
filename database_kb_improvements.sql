@@ -35,10 +35,36 @@ CREATE TABLE IF NOT EXISTS support_ai_logs (
     user_feedback VARCHAR,
     model_used VARCHAR NOT NULL,
     tier INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_support_ai_logs_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-    CONSTRAINT fk_support_ai_logs_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE SET NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Add foreign key constraints separately (in case referenced tables don't exist yet)
+DO $$
+BEGIN
+    -- Add tenant foreign key
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenants') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'fk_support_ai_logs_tenant'
+        ) THEN
+            ALTER TABLE support_ai_logs 
+            ADD CONSTRAINT fk_support_ai_logs_tenant 
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id);
+        END IF;
+    END IF;
+    
+    -- Add case foreign key
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'cases') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'fk_support_ai_logs_case'
+        ) THEN
+            ALTER TABLE support_ai_logs 
+            ADD CONSTRAINT fk_support_ai_logs_case 
+            FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE SET NULL;
+        END IF;
+    END IF;
+END $$;
 
 -- Indexes for support_ai_logs
 CREATE INDEX IF NOT EXISTS ix_support_ai_logs_tenant_id ON support_ai_logs(tenant_id);
@@ -102,7 +128,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- 2. CREATE KB ARTICLES INDEX TABLE
+-- 3. CREATE KB ARTICLES INDEX TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS kb_articles_index (
@@ -115,9 +141,23 @@ CREATE TABLE IF NOT EXISTS kb_articles_index (
     embedding JSONB,
     last_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT fk_kb_articles_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- Add foreign key constraint separately
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenants') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'fk_kb_articles_tenant'
+        ) THEN
+            ALTER TABLE kb_articles_index 
+            ADD CONSTRAINT fk_kb_articles_tenant 
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id);
+        END IF;
+    END IF;
+END $$;
 
 -- Indexes for kb_articles_index
 CREATE INDEX IF NOT EXISTS ix_kb_articles_index_outline_document_id ON kb_articles_index(outline_document_id);
@@ -125,7 +165,7 @@ CREATE INDEX IF NOT EXISTS ix_kb_articles_index_tenant_id ON kb_articles_index(t
 CREATE INDEX IF NOT EXISTS ix_kb_articles_index_last_updated_at ON kb_articles_index(last_updated_at);
 
 -- ============================================================================
--- 3. CREATE KB ARTICLE REVISIONS TABLE
+-- 4. CREATE KB ARTICLE REVISIONS TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS kb_article_revisions (
@@ -136,16 +176,30 @@ CREATE TABLE IF NOT EXISTS kb_article_revisions (
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by VARCHAR NOT NULL DEFAULT 'ai',
-    CONSTRAINT fk_kb_revisions_article FOREIGN KEY (article_id) REFERENCES kb_articles_index(id) ON DELETE CASCADE
+    created_by VARCHAR NOT NULL DEFAULT 'ai'
 );
+
+-- Add foreign key constraint separately
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'kb_articles_index') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'fk_kb_revisions_article'
+        ) THEN
+            ALTER TABLE kb_article_revisions 
+            ADD CONSTRAINT fk_kb_revisions_article 
+            FOREIGN KEY (article_id) REFERENCES kb_articles_index(id) ON DELETE CASCADE;
+        END IF;
+    END IF;
+END $$;
 
 -- Indexes for kb_article_revisions
 CREATE INDEX IF NOT EXISTS ix_kb_article_revisions_outline_document_id ON kb_article_revisions(outline_document_id);
 CREATE INDEX IF NOT EXISTS ix_kb_article_revisions_created_at ON kb_article_revisions(created_at);
 
 -- ============================================================================
--- 4. CREATE KB DECISION LOGS TABLE
+-- 5. CREATE KB DECISION LOGS TABLE
 -- ============================================================================
 -- Note: This table references support_ai_logs, which is created in section 1
 
@@ -159,7 +213,7 @@ CREATE TABLE IF NOT EXISTS kb_decision_logs (
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Add foreign key constraint separately (in case support_ai_logs doesn't exist yet)
+-- Add foreign key constraint separately (support_ai_logs should exist by now)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'support_ai_logs') THEN
@@ -171,6 +225,8 @@ BEGIN
             ADD CONSTRAINT fk_kb_decision_logs_support_log 
             FOREIGN KEY (support_log_id) REFERENCES support_ai_logs(id) ON DELETE SET NULL;
         END IF;
+    ELSE
+        RAISE NOTICE 'Warning: support_ai_logs table does not exist. Foreign key constraint not added.';
     END IF;
 END $$;
 
@@ -179,7 +235,7 @@ CREATE INDEX IF NOT EXISTS ix_kb_decision_logs_support_log_id ON kb_decision_log
 CREATE INDEX IF NOT EXISTS ix_kb_decision_logs_timestamp ON kb_decision_logs(timestamp);
 
 -- ============================================================================
--- 5. CREATE KB QUALITY SCORES TABLE
+-- 6. CREATE KB QUALITY SCORES TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS kb_quality_scores (
@@ -197,26 +253,53 @@ CREATE TABLE IF NOT EXISTS kb_quality_scores (
     reviewed BOOLEAN NOT NULL DEFAULT FALSE,
     reviewed_at TIMESTAMPTZ,
     reviewed_by VARCHAR,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_kb_quality_scores_article FOREIGN KEY (article_id) REFERENCES kb_articles_index(id) ON DELETE SET NULL,
-    CONSTRAINT fk_kb_quality_scores_revision FOREIGN KEY (version_revision_id) REFERENCES kb_article_revisions(id) ON DELETE SET NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Add foreign key constraints separately
+DO $$
+BEGIN
+    -- Article foreign key
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'kb_articles_index') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'fk_kb_quality_scores_article'
+        ) THEN
+            ALTER TABLE kb_quality_scores 
+            ADD CONSTRAINT fk_kb_quality_scores_article 
+            FOREIGN KEY (article_id) REFERENCES kb_articles_index(id) ON DELETE SET NULL;
+        END IF;
+    END IF;
+    
+    -- Revision foreign key
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'kb_article_revisions') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'fk_kb_quality_scores_revision'
+        ) THEN
+            ALTER TABLE kb_quality_scores 
+            ADD CONSTRAINT fk_kb_quality_scores_revision 
+            FOREIGN KEY (version_revision_id) REFERENCES kb_article_revisions(id) ON DELETE SET NULL;
+        END IF;
+    END IF;
+END $$;
 
 -- Indexes for kb_quality_scores
 CREATE INDEX IF NOT EXISTS ix_kb_quality_scores_outline_document_id ON kb_quality_scores(outline_document_id);
 CREATE INDEX IF NOT EXISTS ix_kb_quality_scores_created_at ON kb_quality_scores(created_at);
 
 -- ============================================================================
--- 6. GRANT PERMISSIONS
+-- 7. GRANT PERMISSIONS
 -- ============================================================================
 
+GRANT ALL PRIVILEGES ON TABLE support_ai_logs TO sapphire;
 GRANT ALL PRIVILEGES ON TABLE kb_articles_index TO sapphire;
 GRANT ALL PRIVILEGES ON TABLE kb_article_revisions TO sapphire;
 GRANT ALL PRIVILEGES ON TABLE kb_decision_logs TO sapphire;
 GRANT ALL PRIVILEGES ON TABLE kb_quality_scores TO sapphire;
 
 -- ============================================================================
--- 7. VERIFY CREATION
+-- 8. VERIFY CREATION
 -- ============================================================================
 
 DO $$
