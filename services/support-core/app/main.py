@@ -4,7 +4,7 @@ Sapphire Support Core - Decision Plane + System of Record
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import intake, cases, ops, portal, webhooks, onboarding
+from app.api.v1 import intake, cases, ops, portal, webhooks, onboarding, support
 
 app = FastAPI(
     title="Sapphire Support Core API",
@@ -28,6 +28,7 @@ app.include_router(ops.router, prefix="/v1/ops", tags=["ops"])
 app.include_router(portal.router, prefix="/v1/portal", tags=["portal"])
 app.include_router(webhooks.router, prefix="/v1/webhooks", tags=["webhooks"])
 app.include_router(onboarding.router, prefix="/v1/onboarding", tags=["onboarding"])
+app.include_router(support.router, prefix="/v1/support", tags=["support"])
 
 
 @app.get("/health")

@@ -31,6 +31,8 @@ function CaseDetailPageContent() {
   const [loading, setLoading] = useState(true)
   const [replyText, setReplyText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [escalating, setEscalating] = useState(false)
+  const [escalateReason, setEscalateReason] = useState('')
 
   useEffect(() => {
     if (id) {
@@ -73,6 +75,29 @@ function CaseDetailPageContent() {
     }
   }
 
+  const handleEscalate = async () => {
+    if (!escalateReason.trim()) {
+      alert('Please provide a reason for escalation')
+      return
+    }
+
+    setEscalating(true)
+    try {
+      await axios.post(`${API_URL}/v1/support/escalate`, {
+        case_id: id,
+        reason: escalateReason
+      })
+      alert('Case has been escalated to the support team')
+      setEscalateReason('')
+      fetchCase() // Refresh to show updated status
+    } catch (error: any) {
+      console.error('Error escalating case:', error)
+      alert(error.response?.data?.detail || 'Failed to escalate case')
+    } finally {
+      setEscalating(false)
+    }
+  }
+
   if (loading) {
     return <div className="container">Loading...</div>
   }
@@ -110,6 +135,28 @@ function CaseDetailPageContent() {
             ))}
           </div>
         </section>
+
+        {caseData.status !== 'escalated' && caseData.status !== 'resolved' && caseData.status !== 'closed' && (
+          <section className="escalate-section">
+            <h2>Need Faster Help?</h2>
+            <p>If this issue is urgent or the current response isn't helping, you can escalate this case.</p>
+            <div className="escalate-form">
+              <textarea
+                value={escalateReason}
+                onChange={(e) => setEscalateReason(e.target.value)}
+                placeholder="Why do you need to escalate this case?"
+                rows={3}
+              />
+              <button
+                onClick={handleEscalate}
+                disabled={escalating || !escalateReason.trim()}
+                className="button escalate"
+              >
+                {escalating ? 'Escalating...' : 'Escalate Case'}
+              </button>
+            </div>
+          </section>
+        )}
 
         <section className="reply-section">
           <h2>Add Reply</h2>
@@ -239,6 +286,51 @@ function CaseDetailPageContent() {
 
         .ai-artifact {
           margin-top: 1rem;
+        }
+
+        .escalate-section {
+          background: #fff3e0;
+          border: 1px solid #ff9800;
+          padding: 1.5rem;
+          border-radius: 8px;
+          margin-bottom: 2rem;
+        }
+
+        .escalate-section h2 {
+          margin-top: 0;
+          color: #e65100;
+        }
+
+        .escalate-form {
+          margin-top: 1rem;
+        }
+
+        .escalate-form textarea {
+          width: 100%;
+          padding: 0.75rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 1rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .button.escalate {
+          background: #ff9800;
+          color: white;
+          padding: 0.75rem 1.5rem;
+          border: none;
+          border-radius: 4px;
+          font-size: 1rem;
+          cursor: pointer;
+        }
+
+        .button.escalate:hover {
+          background: #f57c00;
+        }
+
+        .button.escalate:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

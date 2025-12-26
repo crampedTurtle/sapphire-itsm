@@ -1,7 +1,7 @@
 """
 Case and case message models
 """
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum as SQLEnum, JSON
+from sqlalchemy import Column, String, DateTime, ForeignKey, Enum as SQLEnum, JSON, Integer, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -54,6 +54,8 @@ class Case(Base):
     category = Column(SQLEnum(CaseCategory), nullable=False, default=CaseCategory.SUPPORT)
     created_by_identity_id = Column(UUID(as_uuid=True), ForeignKey("identities.id"), nullable=True)
     owner_identity_id = Column(UUID(as_uuid=True), ForeignKey("identities.id"), nullable=True, index=True)
+    ai_confidence = Column(Float, nullable=True)  # AI confidence score (0.0-1.0) from initial resolution attempt
+    tier_route = Column(Integer, nullable=True)  # Tier routing: 0, 1, 2, 3
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     

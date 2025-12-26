@@ -17,6 +17,7 @@ function NewCasePageContent() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [aiResponse, setAiResponse] = useState<any>(null) // For AI auto-resolution
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,19 +29,31 @@ function NewCasePageContent() {
     
     setSubmitting(true)
     setError('')
+    setAiResponse(null)
 
     try {
-      // tenant_id is optional - will be resolved from email domain if not provided
-      const response = await axios.post(`${API_URL}/v1/intake/portal`, {
+      // Use new AI-first support intake endpoint
+      const response = await axios.post(`${API_URL}/v1/support/intakeRequest`, {
         tenant_id: tenantId || undefined, // Will be resolved from email domain if not provided
-        from_email: email,
+        user_id: email,
+        subject: formData.title,
+        message: formData.description,
         category: formData.category,
-        title: formData.title,
-        priority: formData.priority,
-        description: formData.description
+        priority_requested: formData.priority,
+        attachments: [] // TODO: Add file upload support
       })
 
-      router.push(`/cases/${response.data.case_id}`)
+      // Handle AI auto-resolution vs case creation
+      if (response.data.status === 'ai_response') {
+        // AI resolved it - show the answer
+        setAiResponse(response.data)
+        setSubmitting(false)
+      } else if (response.data.status === 'case_created') {
+        // Case was created - redirect to case page
+        router.push(`/cases/${response.data.case_id}`)
+      } else {
+        throw new Error('Unexpected response format')
+      }
     } catch (err: any) {
       console.error('Error creating case:', err)
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to create case'
@@ -60,6 +73,83 @@ function NewCasePageContent() {
           {error && (
             <div className="error">
               {error}
+            </div>
+          )}
+
+          {aiResponse && (
+            <div className="ai-response">
+              <h3>AI Response</h3>
+              <p>{aiResponse.answer}</p>
+              {aiResponse.citations && aiResponse.citations.length > 0 && (
+                <div className="citations">
+                  <h4>Sources:</h4>
+                  <ul>
+                    {aiResponse.citations.map((citation: any, idx: number) => (
+                      <li key={idx}>
+                        <a href={citation.url} target="_blank" rel="noopener noreferrer">
+                          {citation.title || citation.url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {aiResponse.remediation_steps && aiResponse.remediation_steps.length > 0 && (
+                <div className="remediation">
+                  <h4>Recommended Steps:</h4>
+                  <ol>
+                    {aiResponse.remediation_steps.map((step: string, idx: number) => (
+                      <li key={idx}>{step}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              <div className="ai-response-actions">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // User wants to escalate - create case anyway
+                    try {
+                      const response = await axios.post(`${API_URL}/v1/support/intakeRequest`, {
+                        tenant_id: tenantId || undefined,
+                        user_id: email,
+                        subject: formData.title,
+                        message: formData.description + '\n\n[User requested escalation after AI response]',
+                        category: formData.category,
+                        priority_requested: formData.priority,
+                        attachments: []
+                      })
+                      if (response.data.status === 'case_created') {
+                        router.push(`/cases/${response.data.case_id}`)
+                      }
+                    } catch (err: any) {
+                      setError('Failed to create case. Please try again.')
+                      setAiResponse(null)
+                      setSubmitting(false)
+                    }
+                  }}
+                  className="button secondary"
+                >
+                  This didn't help - Create Case
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiResponse(null)
+                    setSubmitting(false)
+                  }}
+                  className="button secondary"
+                >
+                  Ask Another Question
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push('/cases')}
+                  className="button primary"
+                >
+                  View My Cases
+                </button>
+              </div>
             </div>
           )}
 
@@ -203,6 +293,52 @@ function NewCasePageContent() {
         .button:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+
+        .ai-response {
+          background: #e8f5e9;
+          border: 1px solid #4caf50;
+          padding: 1.5rem;
+          border-radius: 8px;
+          margin-bottom: 1.5rem;
+        }
+
+        .ai-response h3 {
+          margin-top: 0;
+          color: #2e7d32;
+        }
+
+        .ai-response h4 {
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+          font-size: 0.9rem;
+          color: #555;
+        }
+
+        .citations ul,
+        .remediation ol {
+          margin: 0.5rem 0;
+          padding-left: 1.5rem;
+        }
+
+        .citations li,
+        .remediation li {
+          margin-bottom: 0.25rem;
+        }
+
+        .citations a {
+          color: #0070f3;
+          text-decoration: none;
+        }
+
+        .citations a:hover {
+          text-decoration: underline;
+        }
+
+        .ai-response-actions {
+          display: flex;
+          gap: 1rem;
+          margin-top: 1.5rem;
         }
       `}</style>
     </div>
