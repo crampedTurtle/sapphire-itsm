@@ -36,11 +36,12 @@ async def get_training_dataset(
     # Convert to dict for JSON serialization
     examples_dict = [ex.dict() for ex in examples]
     
+    from datetime import datetime
     return {
         "format": "json",
         "count": len(examples_dict),
         "examples": examples_dict,
-        "exported_at": dataset_builder.export_training_dataset(limit=limit)["exported_at"]
+        "exported_at": datetime.utcnow().isoformat()
     }
 
 

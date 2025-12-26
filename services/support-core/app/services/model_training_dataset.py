@@ -116,7 +116,7 @@ class ModelTrainingDataset:
         }, synchronize_session=False)
         self.db.commit()
     
-    def export_training_dataset(
+    async def export_training_dataset(
         self,
         limit: int = 500,
         format: str = "json"
