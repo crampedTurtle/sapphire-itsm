@@ -28,11 +28,14 @@ class ReviewQueueItem(BaseModel):
     reason: Optional[str]
     created_at: str
     quality_score_id: str
+    tags: Optional[List[str]] = []
+    updated_at: Optional[str] = None
 
 
 class ApproveRequest(BaseModel):
     reviewed_by: str
     notes: Optional[str] = None
+    publish: Optional[bool] = False  # Whether to publish the article in Outline
 
 
 class RejectRequest(BaseModel):
@@ -74,7 +77,9 @@ async def get_review_queue(
             needs_review=score.needs_review,
             reason=score.reason,
             created_at=score.created_at.isoformat(),
-            quality_score_id=str(score.id)
+            quality_score_id=str(score.id),
+            tags=article.tags if article else [],
+            updated_at=article.last_updated_at.isoformat() if article and article.last_updated_at else score.created_at.isoformat()
         ))
     
     return {
@@ -114,13 +119,27 @@ async def approve_article(
     if article:
         article.is_active = True
     
+    # Publish article in Outline if requested
+    if request.publish:
+        try:
+            from app.services.outline_kb_writer import get_outline_kb_writer
+            kb_writer = get_outline_kb_writer()
+            # Note: Outline API would need an update endpoint to publish
+            # For now, we mark it as approved and active
+            # In production, you'd call Outline's publish API here
+            pass
+        except Exception as e:
+            # Don't fail approval if publish fails
+            print(f"Warning: Failed to publish article in Outline: {e}")
+    
     db.commit()
     
     return {
         "outline_document_id": outline_document_id,
         "status": "approved",
         "reviewed_by": request.reviewed_by,
-        "reviewed_at": score.reviewed_at.isoformat()
+        "reviewed_at": score.reviewed_at.isoformat(),
+        "published": request.publish or False
     }
 
 

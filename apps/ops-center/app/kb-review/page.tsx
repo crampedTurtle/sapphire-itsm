@@ -71,7 +71,7 @@ export default function KBReviewPage() {
     try {
       // Get current user (in production, get from auth context)
       const reviewedBy = 'ops-user' // TODO: Get from auth context
-      await kbApi.approveArticle(documentId, reviewedBy)
+      await kbApi.approveArticle(documentId, reviewedBy, undefined, publish)
       removeItem(documentId)
     } catch (error) {
       console.error('Error approving article:', error)

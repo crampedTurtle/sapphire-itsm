@@ -214,6 +214,8 @@ export const kbApi = {
         reason?: string
         created_at: string
         quality_score_id: string
+        tags?: string[]
+        updated_at?: string
       }>
     }>('/review-queue')
     return response
@@ -222,12 +224,13 @@ export const kbApi = {
   /**
    * Approve KB article
    */
-  async approveArticle(documentId: string, reviewedBy: string, notes?: string) {
+  async approveArticle(documentId: string, reviewedBy: string, notes?: string, publish?: boolean) {
     return kbApiRequest(`/review/${documentId}/approve`, {
       method: 'POST',
       body: JSON.stringify({
         reviewed_by: reviewedBy,
         notes,
+        publish: publish || false,
       }),
     })
   },

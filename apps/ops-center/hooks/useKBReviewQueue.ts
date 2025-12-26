@@ -17,6 +17,7 @@ export interface KBReviewItem {
   quality_score_id: string
   tags?: string[]
   updated_at?: string
+  url?: string
 }
 
 export function useKBReviewQueue() {
