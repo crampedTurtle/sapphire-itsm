@@ -21,6 +21,8 @@ from app.services.audit_service import log_audit_event
 from app.services.sla_service import start_sla_tracking
 from app.services.support_ai_engine import SupportAIEngine, SupportResponse
 from app.services.outline_kb_writer import get_outline_kb_writer
+from app.services.kb_update_agent import KBUpdateAgent
+from app.services.kb_quality_evaluator import KBQualityEvaluator
 
 router = APIRouter()
 
@@ -139,24 +141,141 @@ async def intake_request(
         # Auto-resolve: Return AI answer without creating case
         ai_log.resolved = True
         
-        # Generate KB article if resolution was successful
+        # KB Update Agent workflow: Find similar, decide, create/update, evaluate quality
         kb_result = None
+        kb_document_id = None
         try:
-            kb_writer = get_outline_kb_writer()
-            kb_result = await kb_writer.create_article_from_resolution(
+            kb_agent = KBUpdateAgent(db)
+            quality_evaluator = KBQualityEvaluator(db)
+            
+            # Step 1: Find similar articles
+            similar_articles = await kb_agent.find_similar_articles(
+                tenant_id=tenant.id,
                 issue_title=request.subject,
-                problem_description=request.message,
-                resolution_answer=resolution.answer,
-                resolution_steps=resolution.steps,
-                confidence=final_confidence,
-                tenant_name=tenant.name,
-                is_tenant_specific=False  # Make articles public/general by default
+                problem_description=request.message
             )
             
-            if kb_result.get("kb_created"):
-                ai_log.kb_document_id = kb_result.get("document_id")
+            # Step 2: Decide update vs create
+            decision = await kb_agent.decide_update_or_create(
+                candidates=similar_articles,
+                ai_confidence=final_confidence
+            )
+            
+            # Log decision
+            kb_agent.log_decision(
+                support_log_id=ai_log.id,
+                decision=decision,
+                reason=f"Confidence: {final_confidence}, Similarity: {similar_articles[0].get('similarity', 0) if similar_articles else 0}",
+                similarity_score={"candidates": similar_articles[:3]} if similar_articles else None
+            )
+            
+            if decision == "create":
+                # Generate article content
+                kb_writer = get_outline_kb_writer()
+                article_content = await kb_writer.generate_article_content(
+                    issue_title=request.subject,
+                    problem_description=request.message,
+                    resolution_steps=resolution.steps,
+                    notes=None,
+                    related_articles=[a.get("title") for a in similar_articles[:3]] if similar_articles else None
+                )
+                
+                # Create article
+                create_result = await kb_agent.create_article(
+                    title=request.subject,
+                    content=article_content,
+                    tenant_level="global",
+                    tenant_id=None,
+                    tags=["ai-generated", "support-resolution"]
+                )
+                
+                if create_result.success:
+                    kb_document_id = create_result.outline_document_id
+                    ai_log.kb_document_id = kb_document_id
+                    
+                    # Evaluate quality
+                    quality_result = await quality_evaluator.evaluate_article(
+                        markdown_content=article_content,
+                        context={"confidence": final_confidence, "decision": "create"}
+                    )
+                    
+                    # Store quality score
+                    quality_evaluator.store_quality_score(
+                        outline_document_id=kb_document_id,
+                        article_id=create_result.article_id,
+                        revision_id=None,  # Will be set after revision is created
+                        quality_result=quality_result
+                    )
+                    
+                    kb_result = {
+                        "kb_created": True,
+                        "document_id": kb_document_id,
+                        "action": "created",
+                        "needs_review": quality_result.needs_review
+                    }
+            
+            elif decision == "update":
+                # Get best matching article
+                best_match = similar_articles[0] if similar_articles else None
+                if best_match:
+                    # Generate updated content
+                    kb_writer = get_outline_kb_writer()
+                    article_content = await kb_writer.generate_article_content(
+                        issue_title=request.subject,
+                        problem_description=request.message,
+                        resolution_steps=resolution.steps,
+                        notes=None,
+                        related_articles=None
+                    )
+                    
+                    # Update article
+                    update_result = await kb_agent.update_article(
+                        existing_doc_id=best_match["outline_document_id"],
+                        new_content=article_content,
+                        new_title=request.subject,
+                        merge_strategy="append_variant"
+                    )
+                    
+                    if update_result.success:
+                        kb_document_id = update_result.outline_document_id
+                        ai_log.kb_document_id = kb_document_id
+                        
+                        # Evaluate quality of updated article
+                        quality_result = await quality_evaluator.evaluate_article(
+                            markdown_content=article_content,
+                            context={"confidence": final_confidence, "decision": "update"}
+                        )
+                        
+                        # Store quality score
+                        article = db.query(KBArticleIndex).filter(
+                            KBArticleIndex.outline_document_id == kb_document_id
+                        ).first()
+                        
+                        quality_evaluator.store_quality_score(
+                            outline_document_id=kb_document_id,
+                            article_id=article.id if article else None,
+                            revision_id=None,
+                            quality_result=quality_result
+                        )
+                        
+                        kb_result = {
+                            "kb_created": True,
+                            "document_id": kb_document_id,
+                            "action": "updated",
+                            "revision_number": update_result.revision_number,
+                            "needs_review": quality_result.needs_review
+                        }
+            
+            elif decision == "skip":
+                kb_result = {
+                    "kb_created": False,
+                    "action": "skipped",
+                    "reason": "Low confidence or similar article exists"
+                }
         except Exception as e:
-            # Don't fail the response if KB generation fails
+            # Don't fail the response if KB workflow fails
+            import traceback
+            print(f"KB workflow error: {traceback.format_exc()}")
             pass
         
         db.commit()
@@ -172,7 +291,9 @@ async def intake_request(
                 "user_id": request.user_id,
                 "attempt_number": attempt_number,
                 "kb_created": kb_result.get("kb_created", False) if kb_result else False,
-                "kb_document_id": kb_result.get("document_id") if kb_result else None
+                "kb_document_id": kb_result.get("document_id") if kb_result else None,
+                "kb_action": kb_result.get("action") if kb_result else None,
+                "kb_needs_review": kb_result.get("needs_review", False) if kb_result else False
             }
         )
         

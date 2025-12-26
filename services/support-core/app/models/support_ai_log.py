@@ -27,9 +27,11 @@ class SupportAILog(Base):
     citations = Column(JSONB, nullable=True)  # Citations used
     context_docs = Column(JSONB, nullable=True)  # Context documents retrieved
     user_feedback = Column(String, nullable=True)  # User feedback (helpful/not helpful)
+    helpful = Column(Boolean, nullable=True)  # Customer satisfaction (thumbs up/down)
     model_used = Column(String, nullable=False)
     tier = Column(Integer, nullable=True)  # Tier level (0, 1, 2)
     kb_document_id = Column(String, nullable=True)  # Outline document ID if KB article was created
+    used_in_training = Column(Boolean, nullable=False, default=False)  # Marked for training dataset
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     
     # Relationships
