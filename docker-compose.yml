@@ -39,8 +39,10 @@ services:
     build:
       context: ./apps/ops-center
       dockerfile: Dockerfile
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8001
+    env_file:
+      - ./apps/ops-center/.env
+    # NEXT_PUBLIC_API_URL should come from .env file, not hardcoded here
+    # environment vars from env_file take precedence, but we can override if needed
     ports:
       - "3001:3001"
     depends_on:
