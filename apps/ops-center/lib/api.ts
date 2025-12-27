@@ -193,6 +193,59 @@ export const opsApi = {
       body: JSON.stringify(updates),
     })
   },
+
+  /**
+   * Get support AI logs
+   */
+  async getAILogs(params: {
+    tenant_id?: string
+    case_id?: string
+    resolved?: boolean
+    helpful?: boolean
+    min_confidence?: number
+    used_in_training?: boolean
+    limit?: number
+    offset?: number
+  } = {}) {
+    const queryParams = new URLSearchParams()
+    if (params.tenant_id) queryParams.append('tenant_id', params.tenant_id)
+    if (params.case_id) queryParams.append('case_id', params.case_id)
+    if (params.resolved !== undefined) queryParams.append('resolved', String(params.resolved))
+    if (params.helpful !== undefined) queryParams.append('helpful', String(params.helpful))
+    if (params.min_confidence !== undefined) queryParams.append('min_confidence', String(params.min_confidence))
+    if (params.used_in_training !== undefined) queryParams.append('used_in_training', String(params.used_in_training))
+    if (params.limit) queryParams.append('limit', String(params.limit))
+    if (params.offset) queryParams.append('offset', String(params.offset))
+
+    const query = queryParams.toString()
+    return apiRequest<{
+      total: number
+      limit: number
+      offset: number
+      logs: Array<{
+        id: string
+        tenant_id: string
+        case_id?: string
+        message: string
+        subject?: string
+        ai_answer: string
+        confidence: number
+        resolved: boolean
+        follow_up_flag: boolean
+        escalation_triggered: boolean
+        attempt_number: number
+        citations?: any
+        context_docs?: any
+        user_feedback?: string
+        helpful?: boolean
+        model_used: string
+        tier?: number
+        kb_document_id?: string
+        used_in_training: boolean
+        created_at: string
+      }>
+    }>(`/ai-logs${query ? `?${query}` : ''}`)
+  },
 }
 
 export const kbApi = {

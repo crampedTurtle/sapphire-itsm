@@ -17,6 +17,7 @@ from app.models.ai import AIArtifact
 from app.models.tenant import PlanTier, Tenant
 from app.models.onboarding import OnboardingSession, OnboardingStatus
 from app.models.audit import AuditEvent
+from app.models.support_ai_log import SupportAILog
 from app.services.sla_service import get_sla_policy, get_default_sla_policy
 
 router = APIRouter()

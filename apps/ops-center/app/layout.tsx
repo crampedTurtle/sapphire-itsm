@@ -56,6 +56,9 @@ export default function RootLayout({
                         <Link href="/ai-training" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                           Training Dataset
                         </Link>
+                        <Link href="/ai-logs" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          AI Logs
+                        </Link>
                       </div>
                     </div>
                   </div>
