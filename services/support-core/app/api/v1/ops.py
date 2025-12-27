@@ -499,3 +499,66 @@ async def get_ai_confidence_metrics(
         "max_confidence": round(max(confidences), 3) if confidences else None
     }
 
+
+@router.get("/ai-logs")
+async def get_support_ai_logs(
+    tenant_id: Optional[uuid.UUID] = Query(None),
+    case_id: Optional[uuid.UUID] = Query(None),
+    resolved: Optional[bool] = Query(None),
+    helpful: Optional[bool] = Query(None),
+    min_confidence: Optional[float] = Query(None),
+    used_in_training: Optional[bool] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """Get support AI logs with filters"""
+    query = db.query(SupportAILog)
+    
+    if tenant_id:
+        query = query.filter(SupportAILog.tenant_id == tenant_id)
+    if case_id:
+        query = query.filter(SupportAILog.case_id == case_id)
+    if resolved is not None:
+        query = query.filter(SupportAILog.resolved == resolved)
+    if helpful is not None:
+        query = query.filter(SupportAILog.helpful == helpful)
+    if min_confidence is not None:
+        query = query.filter(SupportAILog.confidence >= min_confidence)
+    if used_in_training is not None:
+        query = query.filter(SupportAILog.used_in_training == used_in_training)
+    
+    total = query.count()
+    logs = query.order_by(SupportAILog.created_at.desc()).offset(offset).limit(limit).all()
+    
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "logs": [
+            {
+                "id": str(log.id),
+                "tenant_id": str(log.tenant_id),
+                "case_id": str(log.case_id) if log.case_id else None,
+                "message": log.message,
+                "subject": log.subject,
+                "ai_answer": log.ai_answer,
+                "confidence": log.confidence,
+                "resolved": log.resolved,
+                "follow_up_flag": log.follow_up_flag,
+                "escalation_triggered": log.escalation_triggered,
+                "attempt_number": log.attempt_number,
+                "citations": log.citations,
+                "context_docs": log.context_docs,
+                "user_feedback": log.user_feedback,
+                "helpful": log.helpful,
+                "model_used": log.model_used,
+                "tier": log.tier,
+                "kb_document_id": log.kb_document_id,
+                "used_in_training": log.used_in_training,
+                "created_at": log.created_at.isoformat()
+            }
+            for log in logs
+        ]
+    }
+
