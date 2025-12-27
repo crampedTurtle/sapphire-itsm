@@ -10,7 +10,7 @@ services:
       AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
       OUTLINE_API_URL: ${OUTLINE_API_URL:-https://outline.home.lan}
       OUTLINE_API_KEY: ${OUTLINE_API_KEY:-}
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001,http://vm-ai.home.lan:3000,http://vm-ai.home.lan:3001
     ports:
       - "8001:8000"
     volumes:
