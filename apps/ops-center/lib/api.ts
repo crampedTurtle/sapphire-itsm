@@ -249,3 +249,78 @@ export const kbApi = {
     })
   },
 }
+
+async function aiApiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = `${API_URL}/v1/ai${endpoint}`
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText)
+      throw new Error(`API request failed (${response.status}): ${errorText}`)
+    }
+
+    return response.json()
+  } catch (error: any) {
+    if (error.message?.includes('fetch failed') || error.message?.includes('Failed to fetch')) {
+      throw new Error(
+        `Failed to connect to API at ${url}. ` +
+        `Please check that the support-core service is running and accessible. ` +
+        `Current API_URL: ${API_URL}`
+      )
+    }
+    throw error
+  }
+}
+
+export const aiApi = {
+  /**
+   * Get training dataset
+   */
+  async getTrainingDataset(params: {
+    limit?: number
+    min_confidence?: number
+    min_quality_score?: number
+  } = {}) {
+    const queryParams = new URLSearchParams()
+    if (params.limit) queryParams.append('limit', String(params.limit))
+    if (params.min_confidence) queryParams.append('min_confidence', String(params.min_confidence))
+    if (params.min_quality_score) queryParams.append('min_quality_score', String(params.min_quality_score))
+
+    const query = queryParams.toString()
+    return aiApiRequest<{
+      format: string
+      count: number
+      examples: Array<{
+        tenant_id: string
+        issue_title: string
+        problem_description: string
+        final_answer: string
+        citations: string[]
+        kb_document_id?: string
+        category?: string
+        confidence: number
+        helpful?: boolean
+        quality_score?: number
+      }>
+      exported_at: string
+    }>(`/training-dataset${query ? `?${query}` : ''}`)
+  },
+
+  /**
+   * Mark training examples as used
+   */
+  async markTrainingExamplesUsed(logIds: string[]) {
+    return aiApiRequest('/training-dataset/mark-used', {
+      method: 'POST',
+      body: JSON.stringify(logIds),
+    })
+  },
+}

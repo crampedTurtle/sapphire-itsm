@@ -50,6 +50,14 @@ export default function RootLayout({
                         </Link>
                       </div>
                     </div>
+                    <div className="relative group">
+                      <NavLink href="/ai-training">AI Management</NavLink>
+                      <div className="absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 border border-gray-200">
+                        <Link href="/ai-training" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          Training Dataset
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
